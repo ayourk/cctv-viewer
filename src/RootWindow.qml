@@ -230,6 +230,8 @@ ApplicationWindow {
           action: function() { carouselTimer.paused = !carouselTimer.paused } },
         { id: "fullScreen",        name: qsTr("Full screen"),           category: qsTr("Window"),   default1: "F11",       default2: "", autoShortcut: false,
           action: function() { Context.config.fullScreen = !Context.config.fullScreen } },
+        { id: "kioskMode",         name: qsTr("Kiosk mode"),            category: qsTr("Window"),   default1: "",          default2: "",
+          action: function() { Context.config.kioskMode = !Context.config.kioskMode } },
         { id: "quit",              name: qsTr("Quit app"),              category: qsTr("Window"),   default1: "Ctrl+Q",    default2: "",
           action: function() { Qt.quit() } }
     ]
@@ -428,12 +430,21 @@ ApplicationWindow {
     Loader {
         id: sideBarLoader
 
+        width: item ? item.implicitWidth : 0
         height: parent.height
         anchors.right: parent.right
 
         Component.onCompleted: {
             if (!Context.config.kioskMode) {
                 source = "SideBar.qml";
+            }
+        }
+
+        // Reactive binding for toggling kiosk mode at runtime
+        Connections {
+            target: Context.config
+            function onKioskModeChanged() {
+                sideBarLoader.source = Context.config.kioskMode ? "" : "SideBar.qml";
             }
         }
     }
