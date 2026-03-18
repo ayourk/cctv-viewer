@@ -143,6 +143,15 @@ ThemedDialog {
                 }
             }
         }
+
+        ThemedButton {
+            text: qsTr("Key Bindings...")
+            accent: true
+
+            Layout.fillWidth: true
+
+            onClicked: keyBindingsDialog.open()
+        }
     }
 
     function loadSettings() {

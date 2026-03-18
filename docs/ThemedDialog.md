@@ -173,6 +173,41 @@ Use this sparingly — only for shortcuts that make sense regardless of what the
 | `Qt.WindowShortcut` | No (default) |
 | `Qt.ApplicationShortcut` | Yes |
 
+### Interaction with the key bindings system
+
+The configurable key bindings system (see `KeyBindingsDialog`) generates `Shortcut` components with `Qt.WindowShortcut` context. This means all user-configured bindings are automatically suppressed while any modal ThemedDialog is open, including:
+
+- The Settings dialog
+- The Key Bindings dialog itself (important — key capture works because the dialog handles `Keys.onPressed` directly, not through `Shortcut` components)
+- Any future dialogs built with ThemedDialog
+
+This is the correct behavior: the Key Bindings dialog needs to capture raw key presses for binding assignment, and having the main window's shortcuts fire simultaneously would conflict. No special handling is needed — Qt's modality system handles the suppression.
+
+To add a new bindable action that should work even during dialogs, add it to `actionDefs` with `autoShortcut: false` and create a manual `Shortcut` block with `context: Qt.ApplicationShortcut`:
+
+```qml
+// In RootWindow.qml
+
+// 1. Add the action definition (autoShortcut: false prevents the
+//    Repeater from generating a Qt.WindowShortcut for it)
+readonly property var actionDefs: [
+    // ... existing actions ...
+    { id: "emergencyStop",  name: qsTr("Emergency stop"),
+      category: qsTr("Window"), default1: "Ctrl+Shift+X", default2: "",
+      autoShortcut: false,
+      action: function() { stopAllStreams() } }
+]
+
+// 2. Create a manual Shortcut with Qt.ApplicationShortcut context
+//    so it fires even when a modal dialog is open
+Shortcut {
+    sequence: keyBindingsDialog.getBindingSlot("emergencyStop", 1)
+    context: Qt.ApplicationShortcut
+    enabled: sequence !== ""
+    onActivated: runAction("emergencyStop")
+}
+```
+
 ## Signals
 
 All v1.3 Dialog signals are supported:

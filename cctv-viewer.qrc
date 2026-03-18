@@ -6,6 +6,7 @@
         <file>src/SettingsDialog.qml</file>
         <file>src/ThemedDialog.qml</file>
         <file>src/ThemedButton.qml</file>
+        <file>src/KeyBindingsDialog.qml</file>
         <file>src/Player.qml</file>
         <file>src/ViewportsLayout.qml</file>
         <file>src/SideBar.qml</file>

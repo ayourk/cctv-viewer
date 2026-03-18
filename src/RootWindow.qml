@@ -204,31 +204,80 @@ ApplicationWindow {
         }
     }
 
-    Shortcut {
-        sequence: "M"
-        onActivated: {
-            if (Utils.currentLayout().focusIndex >= 0) {
-                var item = Utils.currentModel().get(Utils.currentLayout().focusIndex);
-                var viewport = Utils.currentLayout().get(Utils.currentLayout().focusIndex);
+    // ── Bindable action definitions ──────────────────────────────────
+    // To add a new binding: add one entry here. The Key Bindings dialog,
+    // config persistence, conflict detection, and Shortcut generation all
+    // follow automatically. Actions with autoShortcut: false need manual
+    // Shortcut blocks below (for custom enabled conditions or sequences).
+    // The order below determines how items appear in the Key Bindings dialog.
+    readonly property var actionDefs: [
+        { id: "mute",              name: qsTr("Mute/Unmute"),            category: qsTr("Viewport"), default1: "M",         default2: "",
+          action: function() { muteAction() } },
+        { id: "viewportFullScreen", name: qsTr("Viewport fullscreen"),  category: qsTr("Viewport"), default1: "F",         default2: "",
+          action: function() { /* TODO: viewport-level fullscreen */ } },
+        { id: "focusUrl",          name: qsTr("Focus URL input"),       category: qsTr("Viewport"), default1: "Ctrl+L",    default2: "", autoShortcut: false,
+          action: function() {
+              if (Context.config.kioskMode) return;
+              if (sideBarLoader.item && sideBarLoader.item.state === SideBar.Compact) {
+                  sideBarLoader.item.state = SideBar.Popup;
+              }
+          } },
+        { id: "nextPreset",        name: qsTr("Next preset"),           category: qsTr("Presets"),  default1: "Alt+Right", default2: "",
+          action: function() { stackLayout.currentIndex = Math.min(stackLayout.currentIndex + 1, stackLayout.count - 1) } },
+        { id: "prevPreset",        name: qsTr("Previous preset"),       category: qsTr("Presets"),  default1: "Alt+Left",  default2: "",
+          action: function() { stackLayout.currentIndex = Math.max(stackLayout.currentIndex - 1, 0) } },
+        { id: "carouselPause",     name: qsTr("Pause/Resume carousel"), category: qsTr("Presets"),  default1: "Space",     default2: "", autoShortcut: false,
+          action: function() { carouselTimer.paused = !carouselTimer.paused } },
+        { id: "fullScreen",        name: qsTr("Full screen"),           category: qsTr("Window"),   default1: "F11",       default2: "", autoShortcut: false,
+          action: function() { Context.config.fullScreen = !Context.config.fullScreen } },
+        { id: "quit",              name: qsTr("Quit app"),              category: qsTr("Window"),   default1: "Ctrl+Q",    default2: "",
+          action: function() { Qt.quit() } }
+    ]
 
-                if (viewport.hasAudio) {
-                    if (item.volume > 0) {
-                        item.volume = 0;
-                    } else {
-                        item.volume = 1;
-                    }
-                }
+    KeyBindingsDialog {
+        id: keyBindingsDialog
+        actionDefs: rootWindow.actionDefs
+    }
+
+    // ── Configurable key bindings ───────────────────────────────────
+    function runAction(actionId) {
+        for (var i = 0; i < actionDefs.length; ++i) {
+            if (actionDefs[i].id === actionId) { actionDefs[i].action(); return; }
+        }
+    }
+
+    function muteAction() {
+        if (Utils.currentLayout().focusIndex >= 0) {
+            var item = Utils.currentModel().get(Utils.currentLayout().focusIndex);
+            var viewport = Utils.currentLayout().get(Utils.currentLayout().focusIndex);
+
+            if (viewport.hasAudio) {
+                item.volume = item.volume > 0 ? 0 : 1;
             }
         }
     }
-    Shortcut {
-        sequence: "Alt+Right"
-        onActivated: stackLayout.currentIndex = Math.min(stackLayout.currentIndex + 1, stackLayout.count - 1)
+
+    // Auto-generated shortcuts for actions without autoShortcut: false
+    Repeater {
+        model: actionDefs.length
+        delegate: Item {
+            visible: false
+            property var def: actionDefs[index]
+            property bool skip: def.autoShortcut === false
+
+            Shortcut {
+                sequence: skip ? "" : keyBindingsDialog.getBindingSlot(def.id, 1)
+                enabled: !skip && sequence !== ""
+                onActivated: def.action()
+            }
+            Shortcut {
+                sequence: skip ? "" : keyBindingsDialog.getBindingSlot(def.id, 2)
+                enabled: !skip && sequence !== ""
+                onActivated: def.action()
+            }
+        }
     }
-    Shortcut {
-        sequence: "Alt+Left"
-        onActivated: stackLayout.currentIndex = Math.max(stackLayout.currentIndex - 1, 0)
-    }
+
     // Shortcuts for the first 9 presets (Alt + 1, Alt + 2, ..., Alt + 9)
     Repeater {
         model: Context.config.kioskMode ? 0 : Math.min(stackLayout.count, 9)
@@ -240,20 +289,36 @@ ApplicationWindow {
             }
         }
     }
-    Shortcut {
-        sequence: "Space"
-        enabled: presetsSettings.carouselRunning
-        onActivated: carouselTimer.paused = !carouselTimer.paused
-    }
-    Shortcut {
-        sequences: ["F11", StandardKey.FullScreen]
-        onActivated: toggleFullScreen()
-        onActivatedAmbiguously: toggleFullScreen()
 
-        function toggleFullScreen() {
-            Context.config.fullScreen = !Context.config.fullScreen;
-        }
+    // ── Special-case shortcuts (autoShortcut: false) ─────────────
+
+    // Focus URL — needs sidebar awareness
+    Shortcut {
+        sequence: keyBindingsDialog.getBindingSlot("focusUrl", 1)
+        enabled: sequence !== ""
+        onActivated: runAction("focusUrl")
     }
+
+    // Carousel pause — only active when carousel is running
+    Shortcut {
+        sequence: keyBindingsDialog.getBindingSlot("carouselPause", 1)
+        enabled: presetsSettings.carouselRunning && sequence !== ""
+        onActivated: runAction("carouselPause")
+    }
+
+    // Full screen — needs dual sequences
+    Shortcut {
+        sequence: keyBindingsDialog.getBindingSlot("fullScreen", 1)
+        enabled: sequence !== ""
+        onActivated: Context.config.fullScreen = !Context.config.fullScreen
+    }
+    Shortcut {
+        sequences: [StandardKey.FullScreen]
+        onActivated: Context.config.fullScreen = !Context.config.fullScreen
+        onActivatedAmbiguously: Context.config.fullScreen = !Context.config.fullScreen
+    }
+
+    // Quit — uses StandardKey
     Shortcut {
         sequence: StandardKey.Quit
         onActivated: Qt.quit()
